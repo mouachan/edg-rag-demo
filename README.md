@@ -23,6 +23,48 @@ An embedding model for text vectorization.
 - NVIDIA GPU nodes with L40 GPUs
 - HuggingFace account with access token
 
+## Important Configuration Notes
+
+### Zone Affinity Configuration
+
+The deployment manifests include node affinity rules that specify the zone `eu-central-1a`. **This configuration is environment-specific and should be adapted to your infrastructure.**
+
+The zone affinity is used in:
+- **Download Jobs**: To ensure the model download happens on the same zone where the PVC will be mounted
+- **InferenceServices**: To ensure the model serving pods run in the same zone as the storage
+
+**How to adapt for your environment:**
+
+1. List available zones in your cluster:
+```bash
+oc get nodes --show-labels | grep topology.kubernetes.io/zone
+```
+
+2. Edit the zone in the following files to match your environment:
+   - `models/mistral-3-14b-instruct/download-job.yaml`
+   - `models/mistral-3-14b-instruct/inferenceservice.yaml`
+   - `models/gemma-3-embedding/download-job.yaml`
+   - `models/gemma-3-embedding/inferenceservice.yaml`
+
+3. Replace `eu-central-1a` with your target zone:
+```yaml
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+          - YOUR_ZONE_HERE  # Replace with your zone
+```
+
+**Note**: The zone name format depends on your infrastructure (AWS, Azure, GCP, on-premise, etc.). Examples:
+- AWS: `us-east-1a`, `eu-central-1a`, `ap-southeast-1b`
+- Azure: `eastus-1`, `westeurope-2`
+- GCP: `us-central1-a`, `europe-west1-b`
+- On-premise: Custom zone labels defined by your cluster administrator
+
 ## Deployment Steps
 
 ### 1. Create HuggingFace Secret
@@ -189,14 +231,31 @@ oc get events -n edg-demo --sort-by='.lastTimestamp'
 - **Memory**: 16Gi
 - **GPU**: 2x NVIDIA L40
 - **Storage**: 50Gi (PVC)
-- **Zone**: eu-central-1a
+- **Zone**: Depends on your environment (configured as `eu-central-1a` in the manifests)
 
 ### Gemma 3 Embedding
 - **CPU**: 4 cores
 - **Memory**: 16Gi
 - **GPU**: 1x NVIDIA L40
 - **Storage**: 10Gi (PVC)
-- **Zone**: eu-central-1a
+- **Zone**: Depends on your environment (configured as `eu-central-1a` in the manifests)
+
+### GPU Tolerations
+
+The manifests include GPU tolerations configured for NVIDIA L40 GPUs:
+```yaml
+tolerations:
+- effect: NoSchedule
+  key: nvidia.com/gpu
+  operator: Equal
+  value: NVIDIA-L40-PRIVATE
+```
+
+**This configuration is also environment-specific.** Adjust the toleration value to match your GPU node taints:
+```bash
+# Check GPU node taints
+oc describe nodes -l nvidia.com/gpu | grep Taints
+```
 
 ## Architecture
 
