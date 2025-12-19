@@ -1,0 +1,23 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: tei-embeddinggemma
+  namespace: edg-demo
+spec:
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+  containers:
+  - name: kserve-container
+    image: ghcr.io/huggingface/text-embeddings-inference:cuda-1.8.1
+    args:
+    - --model-id=/mnt/models/gemma-embedding-300m
+    - --dtype=float32
+    - --port=8080
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+  multiModel: false
+  supportedModelFormats:
+  - name: tei
+    autoSelect: true

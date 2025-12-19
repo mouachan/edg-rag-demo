@@ -1,0 +1,54 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: mistral-3-14b-instruct
+  namespace: edg-demo
+  annotations:
+    opendatahub.io/apiProtocol: REST
+    opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
+    opendatahub.io/template-display-name: vLLM Mistral 3 ServingRuntime
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    opendatahub.io/kserve-runtime: vllm
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+  containers:
+  - name: kserve-container
+    image: registry.redhat.io/rhaiis-preview/vllm-cuda-rhel9:mistral-3-series
+    args:
+    - --port=8080
+    - --model=/mnt/models/mistral-3-14b-instruct
+    - --served-model-name={{.Name}}
+    - --tokenizer-mode=mistral
+    - --config-format=mistral
+    - --load-format=mistral
+    - --kv-cache-dtype=fp8
+    - --tensor-parallel-size=2
+    - --gpu-memory-utilization=0.90
+    env:
+    - name: HF_HOME
+      value: /tmp/hf_home
+    - name: HF_HUB_OFFLINE
+      value: "0"
+    - name: HF_HUB_CACHE
+      value: /tmp/.cache
+    - name: VLLM_CACHE_ROOT
+      value: /tmp/.cache/vllm
+    - name: VLLM_CACHE_DIR
+      value: /tmp/.cache/vllm
+    - name: TVM_HOME
+      value: /tmp/.cache/tvm
+    - name: FLASHINFER_WORKSPACE_DIR
+      value: /tmp/.cache/flashinfer
+    volumeMounts:
+    - mountPath: /home/vllm/.cache
+      name: vllm-cache
+  multiModel: false
+  supportedModelFormats:
+  - name: vLLM
+    autoSelect: true
+  volumes:
+  - name: vllm-cache
+    emptyDir: {}

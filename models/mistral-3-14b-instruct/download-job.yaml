@@ -1,0 +1,115 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mistral-model-download
+  namespace: edg-demo
+  labels:
+    app: mistral-download
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: mistral-download
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: topology.kubernetes.io/zone
+                operator: In
+                values:
+                - eu-central-1a
+      containers:
+      - name: download-model
+        image: python:3.11-slim
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+
+          echo "=========================================="
+          echo "Mistral Model Download Job"
+          echo "=========================================="
+          echo ""
+
+          # Install dependencies
+          echo "Installing dependencies..."
+          pip install --no-cache-dir --target=/tmp/pip-packages huggingface-hub
+          export PYTHONPATH=/tmp/pip-packages:$PYTHONPATH
+
+          # Set HuggingFace cache directory
+          export HF_HOME=/models/cache
+          mkdir -p $HF_HOME
+
+          # Download model
+          echo ""
+          echo "Downloading mistralai/Ministral-3-14B-Instruct-2512..."
+          echo "This may take 30-60 minutes depending on network speed"
+          echo ""
+
+          python3 << 'EOF'
+          from huggingface_hub import snapshot_download
+          import os
+
+          model_id = "mistralai/Ministral-3-14B-Instruct-2512"
+          local_dir = "/models/mistral-3-14b-instruct"
+
+          print(f"Downloading {model_id}...")
+          print(f"Destination: {local_dir}")
+
+          snapshot_download(
+              repo_id=model_id,
+              local_dir=local_dir,
+              local_dir_use_symlinks=False,
+              resume_download=True
+          )
+
+          print("\n✓ Download complete!")
+          print(f"Model saved to: {local_dir}")
+
+          # List downloaded files
+          print("\nDownloaded files:")
+          for root, dirs, files in os.walk(local_dir):
+              for file in files:
+                  filepath = os.path.join(root, file)
+                  size = os.path.getsize(filepath) / (1024**3)  # GB
+                  print(f"  {file}: {size:.2f} GB")
+          EOF
+
+          echo ""
+          echo "=========================================="
+          echo "Download Complete!"
+          echo "=========================================="
+          echo ""
+          echo "Model location: /models/mistral-3-14b-instruct"
+          echo "Total size:"
+          du -sh /models/mistral-3-14b-instruct
+        env:
+        - name: HUGGING_FACE_HUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: huggingface-token
+        resources:
+          limits:
+            cpu: "2"
+            memory: 4Gi
+          requests:
+            cpu: "1"
+            memory: 2Gi
+        volumeMounts:
+        - mountPath: /models
+          name: model-storage
+      restartPolicy: OnFailure
+      tolerations:
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Equal
+        value: NVIDIA-L40-PRIVATE
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: mistral-model-storage
