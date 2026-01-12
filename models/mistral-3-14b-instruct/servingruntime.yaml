@@ -36,12 +36,6 @@ spec:
       value: /tmp/.cache
     - name: VLLM_CACHE_ROOT
       value: /tmp/.cache/vllm
-    - name: VLLM_CACHE_DIR
-      value: /tmp/.cache/vllm
-    - name: TVM_HOME
-      value: /tmp/.cache/tvm
-    - name: FLASHINFER_WORKSPACE_DIR
-      value: /tmp/.cache/flashinfer
     volumeMounts:
     - mountPath: /home/vllm/.cache
       name: vllm-cache
